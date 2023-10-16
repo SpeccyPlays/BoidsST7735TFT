@@ -1,38 +1,40 @@
 #include <Arduino.h>
 #include "TFT_ST7735.h"
 
-TFT_ST7735 tft(128, 160);
+TFT_ST7735 tft(160, 128);
 //these are reversed for some reason, 128 should be width
-byte SCREENWIDTH = 128;
-byte SCREENHEIGHT= 160;
+byte SCREENWIDTH = 160;
+byte SCREENHEIGHT= 128;
 byte buffer = 20;
 
 struct boidSingle{
-  int8_t x;
-  int8_t y;
-  int8_t oldX;
-  int8_t oldY;
+  int16_t x;
+  int16_t y;
+  int16_t oldX;
+  int16_t oldY;
   byte velocity;
   float angle;
 };
-boidSingle boidArray[20];
+byte boidRadius = 2;
+boidSingle boidArray[25];
 uint32_t globalAverageX = 0;
 uint32_t globalAverageY = 0;
 uint8_t amountOfBoids = 0;
 //these two change the boid behaviour
 byte maxSpeed = 5;
-float avoidenceAngle = 0.2;
-float aimAngle = 0.2;//used to head towards same direction as neighbours
-byte avoidence = 1;
+float avoidenceAngle = 0.02;
+float aimAngle = 0.02;//used to head towards same direction as neighbours
 //just for ease of changing the time between screen refresh
 byte loopDelay = 30;
 void boidSetup(boidSingle *array);
 void showBoids(boidSingle *array);
 void firstRule(boidSingle *array);
-void secondRule(int8_t &x, int8_t &y, float &angle, byte &velocity, boidSingle *array);
-void findAngleBetweenPoints(int8_t &x, int8_t &y, float &angle, uint8_t targetX, uint8_t targetY);
+void secondRule(int16_t &x, int16_t &y, float &angle, byte &velocity, boidSingle *array);
+void findAngleBetweenPoints(int16_t &x, int16_t &y, float &angle, uint16_t targetX, uint16_t targetY);
+byte boidCollisionDetection(int16_t &x, int16_t &y, int16_t &currentBoidx, int16_t &currentBoidY, byte r);
 
 void setup() {
+  Serial.begin(9600);
   tft.begin();
   tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
@@ -45,7 +47,21 @@ void loop() {
   showBoids(boidArray);
   delay(loopDelay);
 }
-void findAngleBetweenPoints(int8_t &x, int8_t &y, float &angle, uint8_t targetX, uint8_t targetY){
+byte boidCollisionDetection(int16_t &x, int16_t &y, int16_t &currentBoidx, int16_t &currentBoidY, byte r){
+  /*
+  check if first point is within radius of circle as boids as circles
+  */
+  int16_t xx = x -currentBoidx;
+  int16_t yy = y - currentBoidY;
+  byte rr = r * r; //both boths have same radius
+  if ((( xx * xx) + (yy * yy)) < (rr * rr) ){
+    return 1;
+  }
+  else {
+    return 0;
+  }
+}
+void findAngleBetweenPoints(int16_t &x, int16_t &y, float &angle, uint16_t targetX, uint16_t targetY){
   /*
   Find the angle between the boid we're at and the center mass
   */
@@ -62,7 +78,7 @@ void firstRule(boidSingle *array){
   globalAverageX = (globalAverageX / (amountOfBoids - 1));
   globalAverageY = (globalAverageY / (amountOfBoids - 1));
 }
-void secondRule(int8_t &x, int8_t &y, float &angle, byte &velocity, boidSingle *array){
+void secondRule(int16_t &x, int16_t &y, float &angle, byte &velocity, boidSingle *array){
   /*
   Second rule of boid is to avoid other boids
   */
@@ -70,40 +86,32 @@ void secondRule(int8_t &x, int8_t &y, float &angle, byte &velocity, boidSingle *
   byte avgNeighbourVeloctity = 0;
   float avgNeighbourAngle = 0.0;
   for (byte i = 0; i < amountOfBoids; i++){
-    if ((y + avoidence == array[i].y) && (x + avoidence == array[i].x)){
-      neighbourCount ++;
-      avgNeighbourVeloctity += array[i].velocity;
-      angle -= avoidenceAngle;
-      avgNeighbourAngle += array[i].angle;
-    }
-    if ((y - avoidence == array[i].y) && (x + avoidence == array[i].x)){
-      angle += avoidenceAngle;
-      neighbourCount ++;
-      avgNeighbourVeloctity += array[i].velocity;
-      avgNeighbourAngle += array[i].angle;
-    }
-    if((y - avoidence == array[i].y) && (x + avoidence == array[i].x)){
-      angle += avoidenceAngle;
-      neighbourCount ++;
-      avgNeighbourVeloctity += array[i].velocity;
-      avgNeighbourAngle += array[i].angle;
-    }
-    if ((y + avoidence == array[i].y) && (x - avoidence == array[i].x)){
-      angle -= avoidenceAngle;
-      neighbourCount ++;
-      avgNeighbourVeloctity += array[i].velocity;
-      avgNeighbourAngle += array[i].angle;
+    /*
+    I've got to make sure I'm not checking the boid against itself
+    I can't find a way to do it in C++ so gone fully janky
+    */
+    if (!((x == array[i].x) & (y == array[i].y) & (velocity == array[i].velocity))){
+      if (boidCollisionDetection(x, y, array[i].x, array[i].y, boidRadius * 4)){
+        if (velocity > 1){
+          velocity --;
+        };
+        angle += avoidenceAngle;
+        neighbourCount ++;
+        avgNeighbourVeloctity += array[i].velocity;
+        avgNeighbourAngle += array[i].angle;
+      }
     }
   }
   if (neighbourCount > 0){
     velocity = avgNeighbourVeloctity / neighbourCount;
+    avgNeighbourAngle = avgNeighbourAngle / neighbourCount;
     if (avgNeighbourAngle > angle){
       angle += aimAngle;
     }
     else {
-      angle -= aimAngle;
+      angle += aimAngle;
     }
-  } 
+  }
 }
 void showBoids(boidSingle *array){
   /*
@@ -111,40 +119,41 @@ void showBoids(boidSingle *array){
   Check if we're inside or outside the 'screen' boundaries and adjust where needed
   */
 	for (byte i = 0; i < amountOfBoids; i++){
-    array[i].oldX = array[i].x;
-    array[i].oldY = array[i].y;
-    if (array[i].velocity < maxSpeed){
-      array[i].velocity ++;
-    }
-    if (array[i].x < buffer){
-			array[i].x = SCREENWIDTH - buffer - 10;
-			array[i].velocity = 1;
-		}
-		else if (array[i].x > SCREENWIDTH - buffer){
-			array[i].x = 30;
-			array[i].velocity = 1;
-		}
-		if (array[i].y < buffer){
-			array[i].y = SCREENHEIGHT - buffer - 10;
-			array[i].velocity = 1; 
-		}
-		else if (array[i].y > SCREENHEIGHT - buffer){
-			array[i].y = 30;
-			array[i].velocity = 1;
-		}
-    firstRule(boidArray);
+    
     /*
     Find the angle between boid current position and centre mass first
     The second rule will adjust the angle to avoid others
     */
-    findAngleBetweenPoints(array[i].x, array[i].y, array[i].angle, globalAverageX, globalAverageY);
+    array[i].oldX = array[i].x;
+    array[i].oldY = array[i].y;
+    firstRule(boidArray);
+    //findAngleBetweenPoints(array[i].x, array[i].y, array[i].angle, globalAverageX, globalAverageY);
     secondRule(array[i].x, array[i].y, array[i].angle, array[i].velocity, boidArray);
-
-    //moving toward the center mass
+    //move the boid
     array[i].y += array[i].velocity * sin(array[i].angle);
 		array[i].x += array[i].velocity * cos(array[i].angle);
-    tft.drawCircle(array[i].oldX, array[i].oldY, 3, TFT_BLACK);
-    tft.drawCircle(array[i].x, array[i].y, 3, TFT_RED);
+    //check if it's now off screen
+    if (array[i].velocity < maxSpeed){
+      array[i].velocity ++;
+    }
+    if (array[i].x < 0){
+			array[i].x = SCREENWIDTH;
+			//array[i].velocity = 1;
+		}
+		else if (array[i].x > SCREENWIDTH){
+			array[i].x = 0;
+			//array[i].velocity = 1;
+		}
+		if (array[i].y < 0){
+			array[i].y = SCREENHEIGHT;
+			//array[i].velocity = 1; 
+		}
+		else if (array[i].y > SCREENHEIGHT){
+			array[i].y = 0;
+			//array[i].velocity = 1;
+		}
+    tft.drawCircle(array[i].oldX, array[i].oldY, boidRadius, TFT_BLACK);
+    tft.drawCircle(array[i].x, array[i].y, boidRadius, TFT_RED);
 	}
 }
 void boidSetup(boidSingle *array){
@@ -155,8 +164,8 @@ void boidSetup(boidSingle *array){
     /*
     Generate random values
     */
-    array[i].y = random(20, SCREENHEIGHT);
-    array[i].x = random(20, SCREENWIDTH);
+    array[i].y = random(0, SCREENHEIGHT);
+    array[i].x = random(0, SCREENWIDTH);
     array[i].velocity = random(1, maxSpeed);
     array[i].angle = random(0.0, 4.7);
   }
