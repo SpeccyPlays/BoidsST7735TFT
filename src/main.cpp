@@ -16,14 +16,16 @@ struct boidSingle{
   float angle;
 };
 byte boidRadius = 2;
-boidSingle boidArray[25];
+byte avoidCheck = 2;
+byte neighbourCheck = 10;
+boidSingle boidArray[20];
 uint32_t globalAverageX = 0;
 uint32_t globalAverageY = 0;
 uint8_t amountOfBoids = 0;
 //these two change the boid behaviour
-byte maxSpeed = 5;
+byte maxSpeed = 10;
 float avoidenceAngle = 0.02;
-float aimAngle = 0.02;//used to head towards same direction as neighbours
+float aimAngle = 0.1;//used to head towards same direction as neighbours
 //just for ease of changing the time between screen refresh
 byte loopDelay = 30;
 void boidSetup(boidSingle *array);
@@ -34,7 +36,6 @@ void findAngleBetweenPoints(int16_t &x, int16_t &y, float &angle, uint16_t targe
 byte boidCollisionDetection(int16_t &x, int16_t &y, int16_t &currentBoidx, int16_t &currentBoidY, byte r);
 
 void setup() {
-  Serial.begin(9600);
   tft.begin();
   tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
@@ -90,13 +91,14 @@ void secondRule(int16_t &x, int16_t &y, float &angle, byte &velocity, boidSingle
     I can't find a way to do it in C++ so gone fully janky
     */
     if (!((x == array[i].x) & (y == array[i].y) & (velocity == array[i].velocity))){
-      if (boidCollisionDetection(x, y, array[i].x, array[i].y, boidRadius + 4)){
-        if (velocity > 1){
+      if (boidCollisionDetection(x, y, array[i].x, array[i].y, boidRadius + avoidCheck)){
+        /*if (velocity > 1){
           velocity --;
-        };
+        };*/
         angle += avoidenceAngle;
+        //angle += array[i].angle - angle;
       }
-      else if (boidCollisionDetection(x, y, array[i].x, array[i].y, boidRadius + 4)){
+      else if (boidCollisionDetection(x, y, array[i].x, array[i].y, boidRadius + neighbourCheck)){
         neighbourCount ++;
         avgNeighbourVeloctity += array[i].velocity;
         avgNeighbourAngle += array[i].angle;
@@ -106,12 +108,13 @@ void secondRule(int16_t &x, int16_t &y, float &angle, byte &velocity, boidSingle
   if (neighbourCount > 0){
     velocity = avgNeighbourVeloctity / neighbourCount;
     avgNeighbourAngle = avgNeighbourAngle / neighbourCount;
-    if (avgNeighbourAngle > angle){
+    angle += (avgNeighbourAngle - angle) * aimAngle;
+    /*if (avgNeighbourAngle > angle){
       angle += aimAngle;
     }
     else {
       angle += aimAngle;
-    }
+    }*/
   }
 }
 void showBoids(boidSingle *array){
