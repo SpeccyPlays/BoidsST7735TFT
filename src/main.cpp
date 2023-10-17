@@ -15,17 +15,19 @@ struct boidSingle{
   byte velocity;
   float angle;
 };
-byte boidRadius = 2;
+byte boidRadius = 1;
 byte avoidCheck = 2;
-byte neighbourCheck = 10;
-boidSingle boidArray[20];
+byte neighbourCheck = 20;
+boidSingle boidArray[25];
 uint32_t globalAverageX = 0;
 uint32_t globalAverageY = 0;
 uint8_t amountOfBoids = 0;
 //these two change the boid behaviour
-byte maxSpeed = 10;
-float avoidenceAngle = 0.02;
-float aimAngle = 0.1;//used to head towards same direction as neighbours
+byte maxSpeed = 5;
+byte minSpeed = 3;
+float avoidenceAngle = 0.04;
+float aimAngle = 0.18;//used to head towards same direction as neighbours
+float edgeAvoidence = 0.5;
 //just for ease of changing the time between screen refresh
 byte loopDelay = 30;
 void boidSetup(boidSingle *array);
@@ -96,7 +98,6 @@ void secondRule(int16_t &x, int16_t &y, float &angle, byte &velocity, boidSingle
           velocity --;
         };*/
         angle += avoidenceAngle;
-        //angle += array[i].angle - angle;
       }
       else if (boidCollisionDetection(x, y, array[i].x, array[i].y, boidRadius + neighbourCheck)){
         neighbourCount ++;
@@ -107,14 +108,11 @@ void secondRule(int16_t &x, int16_t &y, float &angle, byte &velocity, boidSingle
   }
   if (neighbourCount > 0){
     velocity = avgNeighbourVeloctity / neighbourCount;
+    if (velocity < minSpeed){
+      velocity = minSpeed;
+    }
     avgNeighbourAngle = avgNeighbourAngle / neighbourCount;
     angle += (avgNeighbourAngle - angle) * aimAngle;
-    /*if (avgNeighbourAngle > angle){
-      angle += aimAngle;
-    }
-    else {
-      angle += aimAngle;
-    }*/
   }
 }
 void showBoids(boidSingle *array){
@@ -130,32 +128,34 @@ void showBoids(boidSingle *array){
     */
     array[i].oldX = array[i].x;
     array[i].oldY = array[i].y;
+    if (array[i].velocity < maxSpeed){
+      array[i].velocity ++;
+    }
     firstRule(boidArray);
     //findAngleBetweenPoints(array[i].x, array[i].y, array[i].angle, globalAverageX, globalAverageY);
     secondRule(array[i].x, array[i].y, array[i].angle, array[i].velocity, boidArray);
     //move the boid
+
+    //check if it's now off screen
+
+    if (array[i].x < 5){
+			//array[i].x = SCREENWIDTH;
+      array[i].angle += edgeAvoidence;
+		}
+		else if (array[i].x > SCREENWIDTH -5){
+			//array[i].x = 0;
+      array[i].angle += edgeAvoidence;
+		}
+		if (array[i].y < 5){
+			//array[i].y = SCREENHEIGHT;
+      array[i].angle += edgeAvoidence;
+		}
+		else if (array[i].y > SCREENHEIGHT - 5){
+			//array[i].y = 0;
+      array[i].angle += edgeAvoidence;
+		}
     array[i].y += array[i].velocity * sin(array[i].angle);
 		array[i].x += array[i].velocity * cos(array[i].angle);
-    //check if it's now off screen
-    if (array[i].velocity < maxSpeed){
-      array[i].velocity ++;
-    }
-    if (array[i].x < 0){
-			array[i].x = SCREENWIDTH;
-			//array[i].velocity = 1;
-		}
-		else if (array[i].x > SCREENWIDTH){
-			array[i].x = 0;
-			//array[i].velocity = 1;
-		}
-		if (array[i].y < 0){
-			array[i].y = SCREENHEIGHT;
-			//array[i].velocity = 1; 
-		}
-		else if (array[i].y > SCREENHEIGHT){
-			array[i].y = 0;
-			//array[i].velocity = 1;
-		}
     tft.drawCircle(array[i].oldX, array[i].oldY, boidRadius, TFT_BLACK);
     tft.drawCircle(array[i].x, array[i].y, boidRadius, TFT_RED);
 	}
@@ -170,7 +170,7 @@ void boidSetup(boidSingle *array){
     */
     array[i].y = random(0, SCREENHEIGHT);
     array[i].x = random(0, SCREENWIDTH);
-    array[i].velocity = random(1, maxSpeed);
+    array[i].velocity = random(minSpeed, maxSpeed);
     array[i].angle = random(0.0, 4.7);
   }
 }
