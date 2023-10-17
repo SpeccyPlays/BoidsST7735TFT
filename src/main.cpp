@@ -53,8 +53,7 @@ byte boidCollisionDetection(int16_t &x, int16_t &y, int16_t &currentBoidx, int16
   */
   int16_t xx = x -currentBoidx;
   int16_t yy = y - currentBoidY;
-  byte rr = r * r; //both boths have same radius
-  if ((( xx * xx) + (yy * yy)) < (rr * rr) ){
+  if ((( xx * xx) + (yy * yy)) < (r * r) ){
     return 1;
   }
   else {
@@ -91,11 +90,13 @@ void secondRule(int16_t &x, int16_t &y, float &angle, byte &velocity, boidSingle
     I can't find a way to do it in C++ so gone fully janky
     */
     if (!((x == array[i].x) & (y == array[i].y) & (velocity == array[i].velocity))){
-      if (boidCollisionDetection(x, y, array[i].x, array[i].y, boidRadius * 4)){
+      if (boidCollisionDetection(x, y, array[i].x, array[i].y, boidRadius + 4)){
         if (velocity > 1){
           velocity --;
         };
         angle += avoidenceAngle;
+      }
+      else if (boidCollisionDetection(x, y, array[i].x, array[i].y, boidRadius + 4)){
         neighbourCount ++;
         avgNeighbourVeloctity += array[i].velocity;
         avgNeighbourAngle += array[i].angle;
